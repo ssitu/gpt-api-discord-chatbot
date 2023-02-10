@@ -1,0 +1,84 @@
+# Is this user a bot?
+is_bot: false
+
+# API keys
+openai_api_key: YOUR_OPENAI_API_KEY
+discord_api_key: YOUR_DISCORD_API_KEY
+
+# Discord text channel ID to send messages in and receive messages from
+channel_id: "THE_CHANNEL_ID_TO_SEND_MESSAGES_IN_AND_RECEIVE_MESSAGES_FROM"
+
+# Time in seconds between different API calls. Time is uniformly sampled from the integer interval of (timeout - dev, timeout + dev)
+messages_request_timeout: 100
+messages_request_timeout_dev: 50
+gpt_request_timeout: 60
+gpt_request_timeout_dev: 30
+between_messages_request_timeout: 10
+between_messages_request_timeout_dev: 5
+
+# Should the messages from the bot be embeded? Only works if is_bot is true
+embed_messages: true
+
+# List of hyperlinks for the embeded message to be randomly chosen from. Leave empty if you do not want the text to be hyperlinked
+hyperlinks:
+  - "https://www.google.com"
+  - "https://www.youtube.com"
+
+# Dictionary representing the logit bias for GPT text completion
+gpt_logit_bias:
+  "0": -100
+  "1": -100
+
+#
+# Text adjustments
+#
+
+# A mapping of user IDs to nicknames. This is used to replace the IDs found in a message before sending it to the GPT API.
+ids_to_names:
+  "111111111111111111": "Name"
+
+# Should messages be converted to lowercase when checking for triggers? Will not change the case of the message given to the GPT API.
+convert_messages_to_lowercase: true
+
+# 
+# Triggers and blacklists
+#
+
+# Trigger strings (names, words, user IDs, etc.) for the bot to respond to. If convert_messages_to_lowercase is true, text triggers that have capital letters will never be triggered
+text_triggers:
+  - " bot "
+  - "Bot "
+  - "?"
+
+# User IDs of users such that when they are mentioned (reply), the bot will respond
+mention_triggers:
+  - "111111111111111111"
+
+# User IDs of users such that when they reply to a message, the bot will not respond to the message that they replied to
+reply_blacklist:
+  - "111111111111111111"
+
+# GPT prompt
+gpt_prompt: "You are a chatbot for a discord server, and you talk with a lot of attitude."
+
+# Emojis to randomly choose from when the bot reacts to a message
+emojis: ['U+1f44d', 'U+1f44e', 'U+1f923', 'U+1f602', 'U+1f62d', 'U+1f621', 'U+1f620', 'U+1f631', 'U+1f633', 'U+1f622', 'U+1f625',
+ 'U+1f630', 'U+1f628', 'U+1f627', 'U+1f626', 'U+1f623', 'U+1f61e', 'U+1f613', 'U+1f629', 'U+1f62b', 'U+1f624', 'U+1f616', 'U+1f615',
+  'U+1f61f', 'U+1f614', 'U+1f612', 'U+1f611', 'U+1f610', 'U+1f60f', 'U+1f60e', 'U+1f60c', 'U+1f60b', 'U+1f60a', 'U+1f609', 'U+1f604',
+   'U+1f603', 'U+1f600', 'U+1f642', 'U+1f643', 'U+1f92a', 'U+1f928', 'U+1f913', 'U+1f917', 'U+1f914', 'U+1f92d', 'U+1f92b', 'U+1f925',
+    'U+1f910', 'U+1f924', 'U+1f922', 'U+1f92e', 'U+1f927', 'U+1f920', 'U+1f911', 'U+1f921', 'U+1f92b', 'U+1f92c', 'U+1f92f', 'U+1f92e',
+     'U+1f92b', 'U+1f925', 'U+1f910']
+
+
+#
+# Additional bot reply behavior
+#
+
+# Probability of the bot reacting to a message
+react_probability: 0.1
+
+# Should the bot reply to messages with pngs or jpgs?
+reply_to_images: true
+
+# Should the bot respond to messages from itself?
+reply_to_self: true
