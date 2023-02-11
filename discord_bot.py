@@ -21,7 +21,7 @@ discord_headers = {
     "Authorization": f"{'Bot ' if config.is_bot() else ''}{config.get_discord_api_key()}"
 }
 
-def get_datetime_est():
+def get_datetime():
     return datetime.datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
 
 def send_message(message, channel_id, reply_to_id=None):
@@ -156,7 +156,7 @@ def get_gpt_response(prompt, max_tokens=500, temperature=0.7, top_p=1, frequency
         else:
             print(response.json())
             gpt_sleep_time = timeout_std(config.get_gpt_request_timeout(), config.get_gpt_request_timeout_dev())
-            print(f"{get_datetime_est()}: (GPT loop) Sleeping for {gpt_sleep_time} seconds...")
+            print(f"{get_datetime()}: (GPT loop) Sleeping for {gpt_sleep_time} seconds...")
             time.sleep(gpt_sleep_time)
     return response.json()
 
@@ -269,13 +269,11 @@ if __name__ == "__main__":
                     last_id = message["id"]
 
                 message_id_history.append(message["id"])
-                # Sleep for 10 seconds to avoid rate limiting
                 between_messages_sleep_time = timeout_std(config.get_between_messages_timeout(), config.get_between_messages_timeout_dev())
-                # print(f"{get_datetime_est()}: (Message loop) Sleeping for {between_messages_sleep_time} seconds...")
                 time.sleep(between_messages_sleep_time)
         except socket.error as e:
             print("Error:")
             print(e)
         sleep_time = timeout_std(config.get_messages_request_timeout(), config.get_messages_request_timeout_dev())
-        print(f"{get_datetime_est()}: (Main loop) Sleeping for {sleep_time} seconds...")
+        print(f"{get_datetime()}: (Main loop) Sleeping for {sleep_time} seconds...")
         time.sleep(sleep_time)
