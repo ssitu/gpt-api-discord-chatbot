@@ -58,6 +58,10 @@ mention_triggers:
 reply_blacklist:
   - "111111111111111111"
 
+# User IDs of users such that when they react to a message with the specified emoji, the bot will respond. The emojis are the keys, and the values are lists of user IDs for that emoji.
+reaction_triggers:
+  "U+1f440": ["111111111111111111", "222222222222222222"]
+
 # GPT prompt
 gpt_prompt: "You are a chatbot for a discord server, and you talk with a lot of attitude."
 

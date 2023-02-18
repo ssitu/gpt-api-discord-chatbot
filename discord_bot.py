@@ -24,6 +24,21 @@ discord_headers = {
 def get_datetime():
     return datetime.datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
 
+def discord_request(method, url, data=None):
+    # method can be "GET", "PUT", "POST"
+    response = requests.request(method, url, headers=discord_headers, data=json.dumps(data) if data else None)
+    if response.status_code == 200:
+        return response
+    else:
+        print("Status code:", response.status_code)
+        try:
+            print(response.json())
+        except json.decoder.JSONDecodeError:
+            print(response.text)
+        if response.status_code == 429:
+            time.sleep(response.json()["retry_after"] / 1000)
+            return discord_request(method, url, data)
+
 def send_message(message, channel_id, reply_to_id=None):
     hyperlinks = config.get_embed_hyperlinks()
     hyperlink = random.choice(hyperlinks)
@@ -37,7 +52,7 @@ def send_message(message, channel_id, reply_to_id=None):
             "channel_id": channel_id,
             "message_id": reply_to_id
         }
-    response = requests.post(f"{discord_url}/channels/{channel_id}/messages", headers=discord_headers, data=json.dumps(data))
+    response = discord_request("POST", f"{discord_url}/channels/{channel_id}/messages", data)
     return response.json()
 
 def get_messages(channel_id, before_id=None, limit=None):
@@ -46,27 +61,20 @@ def get_messages(channel_id, before_id=None, limit=None):
         url += "?before=" + before_id
     if limit:
         url += "?limit=" + str(limit)
-    response = requests.get(url, headers=discord_headers)
-    if response.status_code == 200:
-        json_messages = json.loads(response.text)
-        return json_messages
-    else:
-        print(response)
-        try:
-            print(response.json())
-        except json.decoder.JSONDecodeError:
-            print(response.text)
-            
-def set_reaction(channel_id, message_id=None, emoji="👍"):
+    response = discord_request("GET", url)
+    return response.json()
+
+def get_reactions(message_id, reaction_emoji, channel_id):
+    url = f"{discord_url}/channels/{channel_id}/messages/{message_id}/reactions/{reaction_emoji}"
+    response = discord_request("GET", url)
+    return response.json()
+
+def set_reaction(channel_id, emoji, message_id=None):
     if not message_id:
         raise Exception("No message id provided")
-    url = discord_url + f"/channels/{channel_id}/messages/{message_id}/reactions/{emoji}/@me"
+    url = f"{discord_url}/channels/{channel_id}/messages/{message_id}/reactions/{emoji}/@me"
     response = requests.put(url, headers=discord_headers)
-    if response.status_code == 204:
-        return True
-    if response.status_code == 400:
-        print(emoji, response.json())
-    return False
+    return response
 
 def timeout_std(timeout, std):
     return timeout + time_rng.randint(-std, std)
@@ -75,7 +83,6 @@ def imageurl_to_base64(url):
     return base64.b64encode(requests.get(url).content)
 
 def get_caption_response(base64_image):
-    import requests
     def base64_url(base64_image): return f"data:image/png;base64,{base64_image.decode()}"
     def base64_post(url, base64_image): return requests.post(url, json={"data": [base64_url(base64_image)]}).json()["data"]
     caption_list = base64_post("https://nielsr-comparing-captioning-models.hf.space/run/predict", base64_image) # List of captions from different models
@@ -184,13 +191,27 @@ if __name__ == "__main__":
         try:
             last_id = None
             messages = get_messages(channel_id=config.get_channel_id(), before_id=last_id, limit=MESSAGE_HISTORY_LIMIT)
+
+            # Iterate through the messages to find messages that have been replied to
             already_replied_set = set()
             for message in messages:
+                reply_blacklist = config.get_reply_blacklist()
+                if message["author"]["id"] in reply_blacklist and "referenced_message" in message and message["referenced_message"] is not None:
+                    mentioned_message_id = message["referenced_message"]["id"]
+                    already_replied_set.add(mentioned_message_id)
+            
+            # Iterate through the messages in reverse order to reply to them
+            for message in reversed(messages):
                 # React to random messages based on message ID
                 emoji_rng.seed(int(message["id"][10:]))
                 random_float = emoji_rng.random()
                 
                 is_message_new = message["id"] not in message_id_history
+                if is_message_new:
+                    print(f"New message: {message['id']}")
+                    print(f"Message content: {message['content']}")
+                    message_id_history.append(message["id"])
+
                 if random_float < config.get_react_probability() and is_message_new:
                     # Is it already reacted to?
                     reacted = False
@@ -214,11 +235,18 @@ if __name__ == "__main__":
                     if mention["id"] in mention_triggers:
                         mentioned = True
 
+                # Does the message have the designated reaction from the specific user?
+                reaction_triggered = False
+                reaction_triggers = config.get_reaction_triggers()
+                for emoji, reaction_trigger_user_ids in reaction_triggers.items():
+                    users = get_reactions(channel_id=config.get_channel_id(), message_id=message["id"], reaction_emoji=emoji)
+                    for user_info in users:
+                        if user_info["id"] in reaction_trigger_user_ids:
+                            reaction_triggered = True
+                            break
+                    time.sleep(1) # Sleep to avoid rate limiting
+
                 # Is the message already replied to by one of the users in the reply blacklist?
-                reply_blacklist = config.get_reply_blacklist()
-                if message["author"]["id"] in reply_blacklist and "referenced_message" in message and message["referenced_message"] is not None:
-                    mentioned_message_id = message["referenced_message"]["id"]
-                    already_replied_set.add(mentioned_message_id)
                 already_replied = message["id"] in already_replied_set
 
                 # Is there an image attached?
@@ -234,17 +262,21 @@ if __name__ == "__main__":
                 referenced_message_by_user = is_reply and "author" in message["referenced_message"] and message["referenced_message"]["author"]["id"] in config.get_mention_triggers()
                 self_replied = message_by_user and is_reply and referenced_message_by_user
                 self_mentioned = message_by_user and mentioned
-                
-                # Condition 1: The user is mentioned (replied to) or a trigger word is used (filter)
-                cond_user_mentioned = passed_filter or mentioned
-                # Condition 2: There is an image attached and the message is not by this user
-                cond_image_attached = (image_attached and not message_by_user) and config.get_reply_to_images()
-                # Condition 3: The message is not already replied to by this user. Prevents replying to messages that the bot already replied to.
-                cond_not_replied_yet = not already_replied
-                # Condition 4: The message isn't by this user as a reply to another message by this user. Prevents replying to itself, prone to repeatedly replying to itself.
-                cond_not_self_reply = not self_replied and not self_mentioned or config.get_reply_to_self()
 
-                should_reply = (cond_user_mentioned or cond_image_attached) and cond_not_replied_yet and cond_not_self_reply
+                # Conditions that cause the bot to reply:
+                # The user is mentioned (replied to) or a trigger word is used (filter)
+                cond_user_mentioned = passed_filter or mentioned
+                # There is an image attached and the message is not by this user
+                cond_image_attached = (image_attached and not message_by_user) and config.get_reply_to_images()
+                # A user reacted to the message with the designated reaction
+                cond_reaction_triggered = reaction_triggered
+
+                # Conditions that prevent the bot from replying:
+                # The message is not already replied to by this user. Prevents replying to messages that the bot already replied to, or replied by a user in the blacklist.
+                cond_not_replied_yet = not already_replied
+                # The message isn't by this user as a reply to another message by this user. Prevents replying to itself, prone to repeatedly replying to itself.
+                cond_not_self_reply = not self_replied and not self_mentioned or config.get_reply_to_self()
+                should_reply = (cond_user_mentioned or cond_image_attached or cond_reaction_triggered) and cond_not_replied_yet and cond_not_self_reply
                 
                 if should_reply:
                     discord_message = message["content"]
@@ -267,8 +299,6 @@ if __name__ == "__main__":
                     response = send_message(gpt_response, channel_id=config.get_channel_id(), reply_to_id=message["id"])
                     # print(response)
                     last_id = message["id"]
-
-                message_id_history.append(message["id"])
                 between_messages_sleep_time = timeout_std(config.get_between_messages_timeout(), config.get_between_messages_timeout_dev())
                 time.sleep(between_messages_sleep_time)
         except socket.error as e:

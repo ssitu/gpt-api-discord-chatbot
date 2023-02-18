@@ -71,6 +71,14 @@ class Config:
 
     def get_text_triggers(self):
         return self.type_check("text_triggers", list, [])
+    
+    def get_reaction_triggers(self):
+        reaction_dict = self.type_check("reaction_triggers", dict, {})
+        new_reaction_dict = {}
+        for emoji_code in reaction_dict:
+            emoji = chr(int(emoji_code[2:], 16))
+            new_reaction_dict[emoji] = reaction_dict[emoji_code]
+        return new_reaction_dict
 
     def get_reply_blacklist(self):
         return self.type_check("reply_blacklist", list, [])
@@ -122,4 +130,4 @@ class Config:
 
 if __name__ == "__main__":
     config = Config()
-    print(config.get_channel_id())
+    print(config.get_emojis())
